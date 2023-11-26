@@ -1393,6 +1393,11 @@ class Amplifier(Node):
         gain_linear = db_to_abs(self.system_gain) * db_to_abs(wavelength_dependent_gain)
         ase_noise_out = ase_noise_in * gain_linear + (noise_figure_linear * h * optical_signal.frequency *
                                                       self.bandwidth * gain_linear)
+        print(noise_figure_linear)
+        print(h)
+        print(optical_signal.frequency)
+        print(self.bandwidth)
+        print(gain_linear)
         # associate amp to optical signal at output interface
         # and update the optical signal state (power)
         self.include_optical_signal_out(optical_signal,

@@ -17,12 +17,13 @@ from mnoptical.dataplane import ( OpticalLink,
 
 # from mnoptical.rest import RestServer
 import math
+from mnoptical.units import db_to_abs
 from mnoptical.ofcdemo.demolib import OpticalCLI, cleanup
 from mnoptical.examples.singleroadm import plotNet
 
 from mininet.topo import Topo
 from mininet.link import Link
-from mininet.node import OVSBridge 
+from mininet.node import OVSBridge
 from mininet.log import setLogLevel, info
 from mininet.clean import cleanup
 
@@ -116,7 +117,8 @@ class UniLinearTopo2( OpticalTopo ):
 
         # WAN Optical link parameters
 
-        boost = ('boost', {'target_gain':boost_gain*dB})
+        if boost_gain!=-1:
+            boost = ('boost', {'target_gain':boost_gain*dB})
         if n!=0:
             aparams = {'target_gain': 100/n*km*.22, 'monitor_mode':'out'}
             spans = []
@@ -139,9 +141,10 @@ class UniLinearTopo2( OpticalTopo ):
         for node in range(1, nodecount+1):
             # Eastbound and westbound roadm->roadm links
 
-            
-            lopts = dict(boost=boost, spans=spans)
-            # lopts = dict(spans=spans)
+            if boost_gain!=-1:
+                lopts = dict(boost=boost, spans=spans)
+            if boost_gain==-1:
+                lopts = dict(spans=spans)
 
 
             if node < nodecount:
@@ -166,15 +169,18 @@ class UniLinearTopo2( OpticalTopo ):
                              port1=uplink(dest), port2=addport(dest))
                 self.wdmLink(f'r{node}', f't{node}', spans=[1*m],
                              port1=dropport(dest), port2=downlink(dest))
+                
 
 def getber(net):
-    for node in net:
-        if "monitor" in node:
-            print(node)
-            # if(command == "bpsk" or command == "qpsk" or command == "8psk" or command == "16psk"):
-            for command in ["bpsk", "qpsk", "8psk", "16psk"]:
-                print("\t",command ,": ", net[node].getber(command))
-            print()
+    print("\tt1-monitor: ", net["t1-monitor"].getber("16psk"),end = '')
+    print(", t2-monitor: ", net["t2-monitor"].getber("16psk"))
+    # for node in net:
+    #     if "monitor" in node:
+    #         print(node)
+    #         if(command == "bpsk" or command == "qpsk" or command == "8psk" or command == "16psk"):
+    #             for command in ["bpsk", "qpsk", "8psk", "16psk"]:
+    #                 print("\t",command ,": ", net[node].getber(command))
+    #         print()
         # net["r2-r1-amp1-monitor"].getber(command)
 
 def setmod(net, command):
@@ -199,6 +205,25 @@ def test1(net):
             osnr = net[node].getosnr()
             for signal in sorted(osnr, key=lambda s:s.index):
                 print( '%s OSNR: %.2f dB , Data rate: %.2fGbps' % ( signal, osnr[signal] , 3*math.log2(1 + 10**((osnr[signal])/float(10)))), end='' )
+
+
+def calcgosnr(net):
+    input_power = 1e-3
+    roadm_insertion_loss = 17*dB
+    hasBoost=True
+    boost_target_gain = 17*dB
+    numAmp = 4
+    Amp_gain = 100/numAmp*km*0.22
+
+    output_power = input_power*db_to_abs(-1*roadm_insertion_loss)*db_to_abs(boost_target_gain)
+    for i in range(numAmp):
+        output_power = output_power*db_to_abs(-1*Amp_gain)*db_to_abs(Amp_gain)
+    output_power = output_power*db_to_abs(-1*roadm_insertion_loss)
+    print(output_power)
+    output_ase_noise = 0
+    # if(hasBoost):
+        # output_ase_noise = db_to_abs(5.5)*6.62607015e-34*
+
 # Configuration
 
 def config(net, mesh=False, root=1):
@@ -210,6 +235,9 @@ def config(net, mesh=False, root=1):
        - For the star topology, we root everything at root.
        - For the full mesh, we route signals eastbound or westbound
          as needed."""
+    
+    setmod(net,"16")
+
 
     info("*** Configuring network...\n")
 
@@ -273,6 +301,10 @@ def config(net, mesh=False, root=1):
     for i in range(1, nodecount+1):
         net[f't{i}'].turn_on()
 
+
+    getber(net)
+
+
 class CLI( OpticalCLI ):
     "CLI with config command"
     def do_config(self, _line):
@@ -283,6 +315,8 @@ class CLI( OpticalCLI ):
         getber(self.mn)
     def do_test1(self, _line):
         test1(self.mn)
+    def do_calcgosnr(self, _line):
+        calcgosnr(self.mn)
 
 def test(net):
     "Configure and test network"
@@ -299,9 +333,9 @@ if __name__ == '__main__':
     input_ampNum = 0
     input_boost_gain = 17
     if len(argv)>=2:
-        input_ampNum = int(argv[1])
+        input_ampNum = int(argv[2])
     if len(argv)>=3:
-        input_boost_gain = int(argv[2])
+        input_boost_gain = int(argv[1])
     topo = UniLinearTopo2(nodecount=2,n = input_ampNum, boost_gain = input_boost_gain)
 
     # if len(argv) < 3:
