@@ -97,7 +97,7 @@ class UniLinearTopo2( OpticalTopo ):
     def downlink(self, src): return 2*self.nodecount+src
 
     # Network topology
-    def build(self, power=0*dBm, nodecount=3):
+    def build(self, power=0*dBm, nodecount=3, n=0, boost_gain = 17):
         """Create a unidirectional linear network with the specified
            operational power and node and transceiver counts"""
         self.nodecount = nodecount
@@ -112,17 +112,22 @@ class UniLinearTopo2( OpticalTopo ):
             self.addHost(f'h{i}')
             self.addSwitch(f's{i}')
             self.addTerminal(f't{i}', **topts)
-            self.addROADM(f'r{i}', **ropts, insertion_loss_dB = 17, reference_power_dBm=power)
+            self.addROADM(f'r{i}', **ropts, insertion_loss_dB = 17*dB, reference_power_dBm = power)
 
         # WAN Optical link parameters
-        boost = ('boost', {'target_gain':17*dB})
-        #aparams = {'target_gain': 25*km*.22, 'monitor_mode':'out'}
-        #spans = [25*km, ('amp1', aparams),25*km, ('amp2', aparams),25*km, ('amp3', aparams),25*km, ('amp4', aparams)]
-        #aparams = {'target_gain': 50*km*.22, 'monitor_mode':'out'}
-        #spans = [50*km, ('amp1', aparams), 50*km, ('amp2', aparams)]
-        aparams = {'target_gain': 100*km*.22, 'monitor_mode':'out'}
-        spans = [100*km, ('amp1', aparams)]
-        #spans = [100*km]
+
+        boost = ('boost', {'target_gain':boost_gain*dB})
+        if n!=0:
+            aparams = {'target_gain': 100/n*km*.22, 'monitor_mode':'out'}
+            spans = []
+            for i in range(1,n+1):
+                spans+=[100/n*km, ('amp'+str(i), aparams)]
+        else:
+            #aparams = {'target_gain': 100*km*.22, 'monitor_mode':'out'}
+            spans = [100*km]
+
+        # aparams = {'target_gain': 50*km*.22, 'monitor_mode':'out'}
+        # spans = [50*km, ('amp1', aparams), 50*km, ('amp2', aparams)]
 
         # Aliases for convenience
         eastin, eastout = self.eastin, self.eastout
@@ -133,7 +138,12 @@ class UniLinearTopo2( OpticalTopo ):
         # Add links for each node/POP
         for node in range(1, nodecount+1):
             # Eastbound and westbound roadm->roadm links
+
+            
             lopts = dict(boost=boost, spans=spans)
+            # lopts = dict(spans=spans)
+
+
             if node < nodecount:
                 self.wdmLink(f'r{node}', f'r{node+1}', **lopts,
                              port1=eastout, port2=eastin)
@@ -181,6 +191,7 @@ def setmod(net, command):
 
             # print(transceivers)
             # print("QAK: ", f"{command}QAM")
+
 def test1(net):
     for node in net:
         if "monitor" in node:
@@ -188,14 +199,6 @@ def test1(net):
             osnr = net[node].getosnr()
             for signal in sorted(osnr, key=lambda s:s.index):
                 print( '%s OSNR: %.2f dB , Data rate: %.2fGbps' % ( signal, osnr[signal] , 3*math.log2(1 + 10**((osnr[signal])/float(10)))), end='' )
-    # s = input()
-    # print(s)
-    # osnr = monitor.get_dict_osnr()
-    # gosnr = monitor.get_dict_gosnr()
-    # for signal in sorted(osnr, key=lambda s:s.index):
-    #     print( '%s OSNR: %.2f dB , Data rate: %.2fGbps' % ( signal, osnr[signal] , 3*math.log2(1 + 10**((osnr[signal])/float(10)))), end='' )
-    #     print( ' gOSNR: %.2f dB , Data rate: %.2fGbps' %( gosnr.get(signal, float('nan')), 3*math.log2(1 + 10**((gosnr.get(signal, float('nan')))/float(10))) )  )
-
 # Configuration
 
 def config(net, mesh=False, root=1):
@@ -293,6 +296,14 @@ if __name__ == '__main__':
     setLogLevel('info')
     if len(argv) == 2 and argv[1] == 'clean': exit(0)
 
+    input_ampNum = 0
+    input_boost_gain = 17
+    if len(argv)>=2:
+        input_ampNum = int(argv[1])
+    if len(argv)>=3:
+        input_boost_gain = int(argv[2])
+    topo = UniLinearTopo2(nodecount=2,n = input_ampNum, boost_gain = input_boost_gain)
+
     # if len(argv) < 3:
     #     print("error input roadm insertion loss and amp target gain")
     #     exit(0)
@@ -304,8 +315,9 @@ if __name__ == '__main__':
     # print("input_target_gain:", input_target_gain)
 
     # topo = UniLinearTopo2(nodecount=2, insertion_loss=input_insertion_loss, target_gain=input_target_gain)
+    
 
-    topo = UniLinearTopo2(nodecount=2)
+    # topo = UniLinearTopo2(nodecount=2)
 
     net = Mininet(topo=topo, switch=OVSBridge, controller=None)
     # restServer = RestServer(net)
