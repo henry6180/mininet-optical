@@ -580,15 +580,15 @@ class Span(object):
             symbol_rate_cut = optical_signal.symbol_rate
             bw_cut = symbol_rate_cut
             pwr_cut = optical_signal.loc_out_to_state[self]['power']
+            print("pwr_cut: ",pwr_cut)
             g_cut = pwr_cut / bw_cut  # G is the flat PSD per channel power (per polarization)
-
             g_nli = 0
             i = 0
             for ch in self.optical_signals:
-
                 symbol_rate_ch = ch.symbol_rate
                 bw_ch = symbol_rate_ch
                 pwr_ch = ch.loc_out_to_state[self]['power']
+                print("pwr_ch: ",pwr_ch)
                 g_ch = pwr_ch / bw_ch  # G is the flat PSD per channel power (per polarization)
                 psi = self.psi_factor(optical_signal, ch, beta2=beta2, asymptotic_length=asymptotic_length[i])
                 g_nli += g_ch ** 2 * g_cut * psi
@@ -600,6 +600,9 @@ class Span(object):
 
             signal_under_test = index_to_signal[channel_under_test]
             nonlinear_noise_struct[signal_under_test] = g_nli * bw_cut
+            print("**************************************************************************************")
+            print("gn_model: ",nonlinear_noise_struct)
+            print("**************************************************************************************")
         return nonlinear_noise_struct
 
     @staticmethod

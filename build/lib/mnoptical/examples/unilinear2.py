@@ -17,7 +17,9 @@ from mnoptical.dataplane import ( OpticalLink,
 
 # from mnoptical.rest import RestServer
 import math
+import numpy as np
 from mnoptical.units import db_to_abs
+from mnoptical.edfa_params import fibre_spectral_attenuation
 from mnoptical.ofcdemo.demolib import OpticalCLI, cleanup
 from mnoptical.examples.singleroadm import plotNet
 
@@ -207,23 +209,91 @@ def test1(net):
                 print( '%s OSNR: %.2f dB , Data rate: %.2fGbps' % ( signal, osnr[signal] , 3*math.log2(1 + 10**((osnr[signal])/float(10)))), end='' )
 
 
-def calcgosnr(net):
+def cag(net, n):
+    # Setting the parameter
     input_power = 1e-3
     roadm_insertion_loss = 17*dB
-    hasBoost=True
+    has_boost=True
     boost_target_gain = 17*dB
-    numAmp = 4
-    Amp_gain = 100/numAmp*km*0.22
+    channel = 191.40e12
+    numAmp = int(n)
+    if numAmp!=0:
+        span_loss = 100/numAmp*km*0.22
+        Amp_gain = 100/numAmp*km*0.22
+    else:
+        span_loss = 100*km*0.22
+    power = []
+    nli_noise = []
 
-    output_power = input_power*db_to_abs(-1*roadm_insertion_loss)*db_to_abs(boost_target_gain)
-    for i in range(numAmp):
-        output_power = output_power*db_to_abs(-1*Amp_gain)*db_to_abs(Amp_gain)
+    # calculate the output power
+    output_power = input_power*db_to_abs(-1*roadm_insertion_loss)
+    if has_boost==True:
+        output_power = output_power*db_to_abs(boost_target_gain)
+    power+=[output_power]
+    if numAmp!=0:
+        for i in range(numAmp):
+            output_power = output_power*db_to_abs(-1*span_loss)
+            output_power = output_power*db_to_abs(Amp_gain)
+            power+=[output_power]
+    else:
+        output_power = output_power*db_to_abs(-1*span_loss)
+        power+=[output_power]
     output_power = output_power*db_to_abs(-1*roadm_insertion_loss)
-    print(output_power)
+    power+=[output_power]
+    
+    # calculate the ase noise
     output_ase_noise = 0
-    # if(hasBoost):
-        # output_ase_noise = db_to_abs(5.5)*6.62607015e-34*
+    if(has_boost):
+        output_ase_noise =0*db_to_abs(boost_target_gain)+db_to_abs(5.5)*6.62607015e-34*channel*32e09*db_to_abs(boost_target_gain)
+    if numAmp!=0:
+        for i in range(numAmp):
+            output_ase_noise = output_ase_noise*db_to_abs(-1*span_loss)
+            output_ase_noise = output_ase_noise*db_to_abs(Amp_gain)+db_to_abs(5.5)*6.62607015e-34*channel*32e09*db_to_abs(Amp_gain)
+    else:
+        output_ase_noise = output_ase_noise*db_to_abs(-1*span_loss)
+    output_ase_noise = output_ase_noise*db_to_abs(-1*roadm_insertion_loss)
 
+    # calculate the nli noise
+    output_nli_noise = 0
+    nli_noise+=[output_nli_noise]
+    for i in range(numAmp):
+        output_nli_noise = output_nli_noise + gn_model(net,power[i],100/numAmp)
+        print(gn_model(net,power[i],100/numAmp))
+        nli_noise+=[output_nli_noise]
+    # Show the answer
+    print(power)
+    print(output_ase_noise)
+    print(nli_noise)
+
+def gn_model(net, power, length):
+    attenuation_values = list(fibre_spectral_attenuation['SMF'])
+    for i in range(0, len(attenuation_values)):
+        attenuation_values[i] = attenuation_values[i] / 1e03
+    fibre_attenuation = (attenuation_values)[::-1]
+    alpha = fibre_attenuation / (length * np.log10(np.e))
+    ref_wavelength=1550e-9
+    dispersion = 1.67e-05
+    beta2 = -(ref_wavelength ** 2) * abs(dispersion) / (2 * math.pi * 299792458.0 )
+    non_linear_coefficient = 1.27 / 1e03
+    gamma = non_linear_coefficient
+    effective_length = (1 - np.exp(-2 * alpha * length)) / (2 * alpha)
+    asymptotic_length = 1 / (2 * alpha)
+
+    symbol_rate_cut = 32e09
+    bw_cut = symbol_rate_cut
+    pwr_cut = power
+    g_cut = pwr_cut / bw_cut
+
+    g_nli = 0
+    symbol_rate_ch = 32e09
+    bw_ch = symbol_rate_ch
+    pwr_ch = power
+    g_ch = pwr_ch / bw_ch
+    psi = np.arcsinh(0.5 * np.pi ** 2 * asymptotic_length[0] * abs(beta2) * bw_cut ** 2)
+    g_nli += g_ch ** 2 * g_cut * psi
+    g_nli *= (16.0 / 27.0) * (gamma * effective_length[0]) ** 2 / (2 * np.pi * abs(beta2) * asymptotic_length[0])
+    g_nli *= bw_cut
+    return g_nli
 # Configuration
 
 def config(net, mesh=False, root=1):
@@ -315,8 +385,8 @@ class CLI( OpticalCLI ):
         getber(self.mn)
     def do_test1(self, _line):
         test1(self.mn)
-    def do_calcgosnr(self, _line):
-        calcgosnr(self.mn)
+    def do_cag(self, _line):
+        cag(self.mn, _line)
 
 def test(net):
     "Configure and test network"
