@@ -1347,17 +1347,6 @@ class Amplifier(Node):
         input_power = optical_signal.loc_in_to_state[self]['power']
         output_power = input_power * system_gain_linear * \
                        wavelength_dependent_gain_linear
-        print()
-        print()
-        print()
-        print(input_power)
-        print(system_gain_linear)
-        print(wavelength_dependent_gain_linear)
-        print()
-        print()
-        print()
-        
-
         # associate amp to optical signal at output interface
         # and update the optical signal state (power)
         self.include_optical_signal_out(optical_signal, power=output_power,

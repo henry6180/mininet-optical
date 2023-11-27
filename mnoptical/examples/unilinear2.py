@@ -18,7 +18,7 @@ from mnoptical.dataplane import ( OpticalLink,
 # from mnoptical.rest import RestServer
 import math
 import numpy as np
-from mnoptical.units import db_to_abs
+from mnoptical.units import db_to_abs, abs_to_db
 from mnoptical.edfa_params import fibre_spectral_attenuation
 from mnoptical.ofcdemo.demolib import OpticalCLI, cleanup
 from mnoptical.examples.singleroadm import plotNet
@@ -212,42 +212,39 @@ def test1(net):
 def cag(net, n):
     # Setting the parameter
     input_power = 1e-3
+    reference_power_dBm = 0
     roadm_insertion_loss = 17*dB
     has_boost=True
     boost_target_gain = 17*dB
-    ch=1
-    channel = 191.40e12
-    numAmp = int(n)
-    if numAmp!=0:
-        span_loss = 100/numAmp*km*0.22
-        Amp_gain = 100/numAmp*km*0.22
-        print("Amp_gain=",Amp_gain)
+    ch=2
+    if ch==1:
+        channel = 191.35e12
     else:
-        span_loss = 100*km*0.22
+        channel = 191.40e12
+
+    numAmp = int(n)
+    Amp_gain=0
+    span_loss = (list(fibre_spectral_attenuation['SMF']))[92-ch]
+    if numAmp!=0:
+        span_loss = span_loss*(100/numAmp*km)
+        Amp_gain = 100/numAmp*km*0.22
+    else:
+        span_loss = span_loss*(100*km)
     power = []
-    nli_noise = []
 
     # calculate the output power
     output_power = input_power*db_to_abs(-1*roadm_insertion_loss)
-    print(output_power)
     if has_boost==True:
         output_power = output_power*db_to_abs(boost_target_gain)
-    print(output_power)
     power+=[output_power]
     if numAmp!=0:
         for i in range(numAmp):
             output_power = output_power*db_to_abs(-1*span_loss)
-            print(output_power)
             output_power = output_power*db_to_abs(Amp_gain)
-            print(output_power)
             power+=[output_power]
     else:
         output_power = output_power*db_to_abs(-1*span_loss)
-        print(output_power)
         power+=[output_power]
-    output_power = output_power*db_to_abs(-1*roadm_insertion_loss)
-    print(output_power)
-    power+=[output_power]
     
     # calculate the ase noise
     output_ase_noise = 0
@@ -259,26 +256,34 @@ def cag(net, n):
             output_ase_noise = output_ase_noise*db_to_abs(Amp_gain)+db_to_abs(5.5)*6.62607015e-34*channel*32e09*db_to_abs(Amp_gain)
     else:
         output_ase_noise = output_ase_noise*db_to_abs(-1*span_loss)
-    output_ase_noise = output_ase_noise*db_to_abs(-1*roadm_insertion_loss)
 
     # calculate the nli noise
     output_nli_noise = 0
-    nli_noise+=[output_nli_noise]
     for i in range(numAmp):
         output_nli_noise = output_nli_noise + gn_model(net,power[i],100/numAmp)
-        print(gn_model(net,power[i],100/numAmp))
-        nli_noise+=[output_nli_noise]
-    # Show the answer
-    # print(power)
-    print(output_ase_noise)
-    print(nli_noise)
+        output_nli_noise = output_nli_noise*db_to_abs(-1*span_loss)
+        output_nli_noise = output_nli_noise*db_to_abs(Amp_gain)
+
+    carrier_attenuation = 0
+    total_power = output_power+output_ase_noise+output_nli_noise
+    carrier_attenuation = abs_to_db(total_power * 1e3) - (reference_power_dBm - roadm_insertion_loss)
+    output_power = output_power*db_to_abs(-1*carrier_attenuation)
+    output_ase_noise = output_ase_noise*db_to_abs(-1*carrier_attenuation)
+    output_nli_noise = output_nli_noise*db_to_abs(-1*carrier_attenuation)
+    print("power=",output_power,", ","ase_noise=",output_ase_noise,", ","nli_noise=",output_nli_noise,". ")
+    print("OSNR=",abs_to_db(output_power/output_ase_noise),", ","gOSNR=",abs_to_db(output_power/(output_ase_noise+output_nli_noise)),". ")
+
+    
+    
 
 def gn_model(net, power, length):
+    length = length * 1e03
     attenuation_values = list(fibre_spectral_attenuation['SMF'])
     for i in range(0, len(attenuation_values)):
         attenuation_values[i] = attenuation_values[i] / 1e03
     fibre_attenuation = (attenuation_values)[::-1]
-    alpha = fibre_attenuation / (length * np.log10(np.e))
+    alpha = fibre_attenuation / (20 * np.log10(np.e))
+
     ref_wavelength=1550e-9
     dispersion = 1.67e-05
     beta2 = -(ref_wavelength ** 2) * abs(dispersion) / (2 * math.pi * 299792458.0 )

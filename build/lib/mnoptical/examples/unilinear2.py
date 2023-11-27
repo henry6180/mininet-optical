@@ -18,7 +18,7 @@ from mnoptical.dataplane import ( OpticalLink,
 # from mnoptical.rest import RestServer
 import math
 import numpy as np
-from mnoptical.units import db_to_abs
+from mnoptical.units import db_to_abs, abs_to_db
 from mnoptical.edfa_params import fibre_spectral_attenuation
 from mnoptical.ofcdemo.demolib import OpticalCLI, cleanup
 from mnoptical.examples.singleroadm import plotNet
@@ -212,16 +212,24 @@ def test1(net):
 def cag(net, n):
     # Setting the parameter
     input_power = 1e-3
+    reference_power_dBm = 0
     roadm_insertion_loss = 17*dB
     has_boost=True
     boost_target_gain = 17*dB
-    channel = 191.40e12
+    ch=2
+    if ch==1:
+        channel = 191.35e12
+    else:
+        channel = 191.40e12
+
     numAmp = int(n)
+    Amp_gain=0
+    span_loss = (list(fibre_spectral_attenuation['SMF']))[92-ch]
     if numAmp!=0:
-        span_loss = 100/numAmp*km*0.22
+        span_loss = span_loss*(100/numAmp*km)
         Amp_gain = 100/numAmp*km*0.22
     else:
-        span_loss = 100*km*0.22
+        span_loss = span_loss*(100*km)
     power = []
     nli_noise = []
 
@@ -238,8 +246,6 @@ def cag(net, n):
     else:
         output_power = output_power*db_to_abs(-1*span_loss)
         power+=[output_power]
-    output_power = output_power*db_to_abs(-1*roadm_insertion_loss)
-    power+=[output_power]
     
     # calculate the ase noise
     output_ase_noise = 0
@@ -248,29 +254,48 @@ def cag(net, n):
     if numAmp!=0:
         for i in range(numAmp):
             output_ase_noise = output_ase_noise*db_to_abs(-1*span_loss)
-            output_ase_noise = output_ase_noise*db_to_abs(Amp_gain)+db_to_abs(5.5)*6.62607015e-34*channel*32e09*db_to_abs(Amp_gain)
+            output_ase_noise = output_ase_noise*db_to_abs(Amp_gain)
     else:
         output_ase_noise = output_ase_noise*db_to_abs(-1*span_loss)
-    output_ase_noise = output_ase_noise*db_to_abs(-1*roadm_insertion_loss)
 
     # calculate the nli noise
+    print("**************************************")
     output_nli_noise = 0
     nli_noise+=[output_nli_noise]
+    
     for i in range(numAmp):
         output_nli_noise = output_nli_noise + gn_model(net,power[i],100/numAmp)
-        print(gn_model(net,power[i],100/numAmp))
+        print(output_nli_noise)
+        output_nli_noise = output_nli_noise*db_to_abs(-1*span_loss)
+        print(output_nli_noise)
+        output_nli_noise = output_nli_noise*db_to_abs(Amp_gain)+db_to_abs(5.5)*6.62607015e-34*channel*32e09*db_to_abs(Amp_gain)
+        print(output_nli_noise)
         nli_noise+=[output_nli_noise]
-    # Show the answer
-    print(power)
-    print(output_ase_noise)
-    print(nli_noise)
+    print("**************************************")
+
+    carrier_attenuation = 0
+    total_power = output_power+output_ase_noise+output_nli_noise
+    carrier_attenuation = abs_to_db(total_power * 1e3) - (reference_power_dBm - roadm_insertion_loss)
+    print("carrier_attenuation = ",carrier_attenuation)
+    output_power = output_power*db_to_abs(-1*carrier_attenuation)
+    output_ase_noise = output_ase_noise*db_to_abs(-1*carrier_attenuation)
+    output_nli_noise = output_nli_noise*db_to_abs(-1*carrier_attenuation)
+    print("output_power = ",output_power)
+    print("output_ase_noise = ",output_ase_noise)
+    print("output_nli_noise = ",output_nli_noise)
+
+    
+    
 
 def gn_model(net, power, length):
+    # print("******************************************************************************************************************************************")
+    length = length * 1e03
     attenuation_values = list(fibre_spectral_attenuation['SMF'])
     for i in range(0, len(attenuation_values)):
         attenuation_values[i] = attenuation_values[i] / 1e03
     fibre_attenuation = (attenuation_values)[::-1]
-    alpha = fibre_attenuation / (length * np.log10(np.e))
+    alpha = fibre_attenuation / (20 * np.log10(np.e))
+
     ref_wavelength=1550e-9
     dispersion = 1.67e-05
     beta2 = -(ref_wavelength ** 2) * abs(dispersion) / (2 * math.pi * 299792458.0 )
@@ -279,20 +304,41 @@ def gn_model(net, power, length):
     effective_length = (1 - np.exp(-2 * alpha * length)) / (2 * alpha)
     asymptotic_length = 1 / (2 * alpha)
 
+    # print(alpha)
+    # print(beta2)
+    # print(gamma)
+    # print(effective_length)
+    # print(asymptotic_length)
+
     symbol_rate_cut = 32e09
     bw_cut = symbol_rate_cut
     pwr_cut = power
     g_cut = pwr_cut / bw_cut
 
+    # print(symbol_rate_cut)
+    # print(bw_cut)
+    # print(pwr_cut)
+    # print(g_cut)
+
     g_nli = 0
     symbol_rate_ch = 32e09
+    # print(symbol_rate_ch)
     bw_ch = symbol_rate_ch
+    # print(bw_ch)
     pwr_ch = power
+    # print(pwr_ch)
     g_ch = pwr_ch / bw_ch
+    # print(g_ch)
     psi = np.arcsinh(0.5 * np.pi ** 2 * asymptotic_length[0] * abs(beta2) * bw_cut ** 2)
+    # print(psi)
     g_nli += g_ch ** 2 * g_cut * psi
+    # print(g_nli)
     g_nli *= (16.0 / 27.0) * (gamma * effective_length[0]) ** 2 / (2 * np.pi * abs(beta2) * asymptotic_length[0])
+    # print(g_nli)
     g_nli *= bw_cut
+    # print(g_nli)
+
+    # print("******************************************************************************************************************************************")
     return g_nli
 # Configuration
 

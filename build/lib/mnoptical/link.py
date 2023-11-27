@@ -549,9 +549,14 @@ class Span(object):
         Compute GN model and updates state data structures
         """
         nonlinear_noise = self.gn_model()
+
+        # print("nonlinear_noise:",nonlinear_noise)
+
         for optical_signal in self.optical_signals:
             nli_noise_in = optical_signal.loc_in_to_state[self]['nli_noise']
+            # print("nli_noise_in:",nli_noise_in)
             nli_noise_out = nli_noise_in + nonlinear_noise[optical_signal]
+            # print("nli_noise_out:",nli_noise_out)
             self.include_optical_signal_out(optical_signal, nli_noise=nli_noise_out)
             print("[gn model] nli_noise_in ", nli_noise_in, ",nli_noise_out ", nli_noise_out)
 
@@ -561,48 +566,71 @@ class Span(object):
         The method uses eq. 120 from arXiv:1209.0394.
         :return: carrier_nli: the amount of nonlinear interference in W on the carrier under analysis
         """
+        # print("******************************************************************************************************************************************")
         nonlinear_noise_struct = {}
         channels_index = []
         index_to_signal = {}
         for channel in self.optical_signals:
+            # print(channel)
             nonlinear_noise_struct[channel] = None
             channels_index.append(channel.index)
             index_to_signal[channel.index] = channel
+        
+        # print(channels_index)
+        # print(index_to_signal)
         alpha = self.alpha
         beta2 = self.beta2()
         gamma = self.non_linear_coefficient
         effective_length = self.effective_length
         asymptotic_length = 1 / (2 * alpha)
+        # print(alpha)
+        # print(beta2)
+        # print(gamma)
+        # print(effective_length)
+        # print(asymptotic_length)
 
         index = 0
         for optical_signal in self.optical_signals:
+            # print(optical_signal)
             channel_under_test = optical_signal.index
+            # print(channel_under_test)
             symbol_rate_cut = optical_signal.symbol_rate
+            # print(symbol_rate_cut)
             bw_cut = symbol_rate_cut
+            # print(bw_cut)
             pwr_cut = optical_signal.loc_out_to_state[self]['power']
-            print("pwr_cut: ",pwr_cut)
+            # print(pwr_cut)
             g_cut = pwr_cut / bw_cut  # G is the flat PSD per channel power (per polarization)
+            # print(g_cut)
             g_nli = 0
             i = 0
             for ch in self.optical_signals:
+                # print(ch)
                 symbol_rate_ch = ch.symbol_rate
+                # print(symbol_rate_ch)
                 bw_ch = symbol_rate_ch
+                # print(bw_ch)
                 pwr_ch = ch.loc_out_to_state[self]['power']
-                print("pwr_ch: ",pwr_ch)
+                # print(pwr_ch)
                 g_ch = pwr_ch / bw_ch  # G is the flat PSD per channel power (per polarization)
+                # print(g_ch)
                 psi = self.psi_factor(optical_signal, ch, beta2=beta2, asymptotic_length=asymptotic_length[i])
+                # print(psi)
                 g_nli += g_ch ** 2 * g_cut * psi
+                # print(g_nli)
 
                 i += 1
+            # print(i)
             with errstate(divide='ignore'):
                 g_nli *= (16.0 / 27.0) * (gamma * effective_length[index]) ** 2 / (2 * np.pi * abs(beta2) * asymptotic_length[index])
+                # print(g_nli)
                 index = index + 1
-
+            # print(index)
             signal_under_test = index_to_signal[channel_under_test]
+            # print(signal_under_test)
             nonlinear_noise_struct[signal_under_test] = g_nli * bw_cut
-            print("**************************************************************************************")
-            print("gn_model: ",nonlinear_noise_struct)
-            print("**************************************************************************************")
+            # print(nonlinear_noise_struct)
+            # print("******************************************************************************************************************************************")
         return nonlinear_noise_struct
 
     @staticmethod
