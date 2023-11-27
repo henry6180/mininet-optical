@@ -1702,7 +1702,7 @@ class Monitor(Node):
         if ber_method == '8psk':
             ber = (2 / 3) * erfc(sqrt((3 / 14) * gosnr[0][1]))
         if ber_method == '16psk':
-            ber = (3 / 8) * erfc(sqrt(gosnr[0][1]) / 10)
+            ber = (3 / 8) * erfc(sqrt(gosnr[0][1] / 10))
         return ber
 
     def get_dict_power(self):

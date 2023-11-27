@@ -118,17 +118,17 @@ class UniLinearTopo2( OpticalTopo ):
             self.addROADM(f'r{i}', **ropts, insertion_loss_dB = 17*dB, reference_power_dBm = power)
 
         # WAN Optical link parameters
-
+        total = 100
         if boost_gain!=-1:
             boost = ('boost', {'target_gain':boost_gain*dB})
         if n!=0:
-            aparams = {'target_gain': 100/n*km*.22, 'monitor_mode':'out'}
+            aparams = {'target_gain': total/n*km*.22, 'monitor_mode':'out'}
             spans = []
             for i in range(1,n+1):
-                spans+=[100/n*km, ('amp'+str(i), aparams)]
+                spans+=[total/n*km, ('amp'+str(i), aparams)]
         else:
             #aparams = {'target_gain': 100*km*.22, 'monitor_mode':'out'}
-            spans = [100*km]
+            spans = [total*km]
 
         # aparams = {'target_gain': 50*km*.22, 'monitor_mode':'out'}
         # spans = [50*km, ('amp1', aparams), 50*km, ('amp2', aparams)]
@@ -174,14 +174,20 @@ class UniLinearTopo2( OpticalTopo ):
                 
 
 def getber(net):
-    print("\tt1-monitor: ", net["t1-monitor"].getber("16psk"),end = '')
+    print("t1-monitor: ", net["t1-monitor"].getber("16psk"),end = '')
     print(", t2-monitor: ", net["t2-monitor"].getber("16psk"))
+    fo = open("osnrresult.txt","a")
+    fo.write(str(net["t1-monitor"].getber("16psk")))
+    fo.write("\n")
+    fo.write(str(net["t2-monitor"].getber("16psk")))
+    fo.write("\n")
+    fo.close()
     # for node in net:
     #     if "monitor" in node:
     #         print(node)
-    #         if(command == "bpsk" or command == "qpsk" or command == "8psk" or command == "16psk"):
-    #             for command in ["bpsk", "qpsk", "8psk", "16psk"]:
-    #                 print("\t",command ,": ", net[node].getber(command))
+    #         # if(command == "bpsk" or command == "qpsk" or command == "8psk" or command == "16psk"):
+    #         for command in ["bpsk", "qpsk", "8psk", "16psk"]:
+    #             print("\t",command ,": ", net[node].getber(command))
     #         print()
         # net["r2-r1-amp1-monitor"].getber(command)
 
@@ -201,15 +207,33 @@ def setmod(net, command):
             # print("QAK: ", f"{command}QAM")
 
 def test1(net):
-    for node in net:
-        if "monitor" in node:
-            print(node)
-            osnr = net[node].getosnr()
-            for signal in sorted(osnr, key=lambda s:s.index):
-                print( '%s OSNR: %.2f dB , Data rate: %.2fGbps' % ( signal, osnr[signal] , 3*math.log2(1 + 10**((osnr[signal])/float(10)))), end='' )
+    fo = open("osnrresult.txt","a")
+    # osnr = net["t1-monitor"].getosnr()
+    gosnr = net["t1-monitor"].getgosnr()
+    for signal in sorted(gosnr, key=lambda s:s.index):
+        # fo.write(str(osnr[signal]))
+        # fo.write("\n")
+        fo.write(str(gosnr.get(signal, float('nan'))))
+        fo.write("\n")
+    # osnr = net["t2-monitor"].getosnr()
+    gosnr = net["t2-monitor"].getgosnr()
+    for signal in sorted(gosnr, key=lambda s:s.index):
+        # fo.write(str(osnr[signal]))
+        # fo.write("\n")
+        fo.write(str(gosnr.get(signal, float('nan'))))
+        fo.write("\n")
+    fo.close()
+    # for node in net:
+    #     if "monitor" in node:
+    #         print(node)
+    #         osnr = net[node].getosnr()
+    #         gosnr = net[node].getgosnr()
+    #         for signal in sorted(osnr, key=lambda s:s.index):
+    #             print( '%s OSNR: %.2f dB , Data rate: %.2fGbps' % ( signal, osnr[signal] , 3*math.log2(1 + 10**((osnr[signal])/float(10)))), end='' )
+    
 
 
-def cag(net, n):
+def calc(net, n):
     # Setting the parameter
     input_power = 1e-3
     reference_power_dBm = 0
@@ -272,9 +296,6 @@ def cag(net, n):
     output_nli_noise = output_nli_noise*db_to_abs(-1*carrier_attenuation)
     print("power=",output_power,", ","ase_noise=",output_ase_noise,", ","nli_noise=",output_nli_noise,". ")
     print("OSNR=",abs_to_db(output_power/output_ase_noise),", ","gOSNR=",abs_to_db(output_power/(output_ase_noise+output_nli_noise)),". ")
-
-    
-    
 
 def gn_model(net, power, length):
     length = length * 1e03
@@ -385,6 +406,8 @@ def config(net, mesh=False, root=1):
         net[f't{i}'].turn_on()
 
 
+    
+    test1(net)
     getber(net)
 
 
@@ -398,8 +421,8 @@ class CLI( OpticalCLI ):
         getber(self.mn)
     def do_test1(self, _line):
         test1(self.mn)
-    def do_cag(self, _line):
-        cag(self.mn, _line)
+    def do_calc(self, _line):
+        calc(self.mn, _line)
 
 def test(net):
     "Configure and test network"
@@ -416,9 +439,15 @@ if __name__ == '__main__':
     input_ampNum = 0
     input_boost_gain = 17
     if len(argv)>=2:
-        input_ampNum = int(argv[2])
-    if len(argv)>=3:
         input_boost_gain = int(argv[1])
+    if len(argv)>=3:
+        input_ampNum = int(argv[2])
+    fo = open("osnrresult.txt","a")
+    fo.write(argv[1])
+    fo.write(", ")
+    fo.write(argv[2])
+    fo.write("\n")
+    fo.close()
     topo = UniLinearTopo2(nodecount=2,n = input_ampNum, boost_gain = input_boost_gain)
 
     # if len(argv) < 3:

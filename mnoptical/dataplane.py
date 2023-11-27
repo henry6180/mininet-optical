@@ -227,6 +227,9 @@ class Monitor:
 
     def getosnr(self ):
         return self.model.get_dict_osnr()
+     
+    def getgosnr(self ):
+        return self.model.get_dict_gosnr()
 
 
 def PhySpan( length, amp=None ):
