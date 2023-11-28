@@ -230,8 +230,6 @@ def test1(net):
     #         gosnr = net[node].getgosnr()
     #         for signal in sorted(osnr, key=lambda s:s.index):
     #             print( '%s OSNR: %.2f dB , Data rate: %.2fGbps' % ( signal, osnr[signal] , 3*math.log2(1 + 10**((osnr[signal])/float(10)))), end='' )
-    
-
 
 def calc(net, n):
     # Setting the parameter

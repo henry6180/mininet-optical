@@ -208,18 +208,18 @@ def setmod(net, command):
 
 def test1(net):
     fo = open("osnrresult.txt","a")
-    osnr = net["t1-monitor"].getosnr()
+    # osnr = net["t1-monitor"].getosnr()
     gosnr = net["t1-monitor"].getgosnr()
-    for signal in sorted(osnr, key=lambda s:s.index):
-        fo.write(str(osnr[signal]))
-        fo.write("\n")
+    for signal in sorted(gosnr, key=lambda s:s.index):
+        # fo.write(str(osnr[signal]))
+        # fo.write("\n")
         fo.write(str(gosnr.get(signal, float('nan'))))
         fo.write("\n")
-    osnr = net["t2-monitor"].getosnr()
+    # osnr = net["t2-monitor"].getosnr()
     gosnr = net["t2-monitor"].getgosnr()
-    for signal in sorted(osnr, key=lambda s:s.index):
-        fo.write(str(osnr[signal]))
-        fo.write("\n")
+    for signal in sorted(gosnr, key=lambda s:s.index):
+        # fo.write(str(osnr[signal]))
+        # fo.write("\n")
         fo.write(str(gosnr.get(signal, float('nan'))))
         fo.write("\n")
     fo.close()
