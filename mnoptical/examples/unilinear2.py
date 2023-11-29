@@ -282,16 +282,25 @@ def calc(net, n):
     # calculate the nli noise
     output_nli_noise = 0
     for i in range(numAmp):
-        output_nli_noise = output_nli_noise + gn_model(net,power[i],100/numAmp)
+        output_nli_noise = output_nli_noise + gn_model(net,power[i],100/numAmp*km)
         output_nli_noise = output_nli_noise*db_to_abs(-1*span_loss)
         output_nli_noise = output_nli_noise*db_to_abs(Amp_gain)
 
+    # calculate the last roadm part
     carrier_attenuation = 0
     total_power = output_power+output_ase_noise+output_nli_noise
     carrier_attenuation = abs_to_db(total_power * 1e3) - (reference_power_dBm - roadm_insertion_loss)
     output_power = output_power*db_to_abs(-1*carrier_attenuation)
     output_ase_noise = output_ase_noise*db_to_abs(-1*carrier_attenuation)
     output_nli_noise = output_nli_noise*db_to_abs(-1*carrier_attenuation)
+
+    # calculate the last 0.001km span part
+    last_span_loss = (list(fibre_spectral_attenuation['SMF']))[92-ch] *(0.001*km)
+    output_nli_noise = output_nli_noise + gn_model(net,output_power,0.001*km)
+    output_nli_noise = output_nli_noise*db_to_abs(-1*last_span_loss)
+    output_power = output_power*db_to_abs(-1*last_span_loss)
+    output_ase_noise = output_ase_noise*db_to_abs(-1*last_span_loss)
+    
     print("power=",output_power,", ","ase_noise=",output_ase_noise,", ","nli_noise=",output_nli_noise,". ")
     print("OSNR=",abs_to_db(output_power/output_ase_noise),", ","gOSNR=",abs_to_db(output_power/(output_ase_noise+output_nli_noise)),". ")
 
