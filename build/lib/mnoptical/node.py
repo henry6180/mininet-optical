@@ -1088,7 +1088,7 @@ class Roadm(Node):
             print("carriers_att", carriers_att[optical_signal.index])
 
 
-
+        print("carriers_att.values()=",carriers_att.values())
         exceeding_att = -min(list(filter(lambda x: x < 0, carriers_att.values())), default=0)
         print("exceeding_att: ", exceeding_att)
         for k, x in carriers_att.items():

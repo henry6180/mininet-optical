@@ -129,7 +129,7 @@ class UniLinearTopo2( OpticalTopo ):
         else:
             #aparams = {'target_gain': 100*km*.22, 'monitor_mode':'out'}
             spans = [total*km]
-
+        print("spans=",spans)
         # aparams = {'target_gain': 50*km*.22, 'monitor_mode':'out'}
         # spans = [50*km, ('amp1', aparams), 50*km, ('amp2', aparams)]
 
@@ -234,16 +234,15 @@ def test1(net):
 def calc(net, n):
     # Setting the parameter
     input_power = 1e-3
-    reference_power_dBm = 0
     roadm_insertion_loss = 17*dB
-    has_boost=True
     boost_target_gain = 17*dB
     ch=2
     if ch==1:
-        channel = 191.35e12
+        ch_freq = 191.35e12
     else:
-        channel = 191.40e12
-
+        ch_freq = 191.40e12
+    h = 6.62607015e-34
+    bw = 32e09
     numAmp = int(n)
     Amp_gain=0
     span_loss = (list(fibre_spectral_attenuation['SMF']))[92-ch]
@@ -253,11 +252,9 @@ def calc(net, n):
     else:
         span_loss = span_loss*(100*km)
     power = []
-
     # calculate the output power
     output_power = input_power*db_to_abs(-1*roadm_insertion_loss)
-    if has_boost==True:
-        output_power = output_power*db_to_abs(boost_target_gain)
+    output_power = output_power*db_to_abs(boost_target_gain)
     power+=[output_power]
     if numAmp!=0:
         for i in range(numAmp):
@@ -270,30 +267,35 @@ def calc(net, n):
     
     # calculate the ase noise
     output_ase_noise = 0
-    if(has_boost):
-        output_ase_noise =0*db_to_abs(boost_target_gain)+db_to_abs(5.5)*6.62607015e-34*channel*32e09*db_to_abs(boost_target_gain)
+    output_ase_noise =output_ase_noise*db_to_abs(boost_target_gain)+db_to_abs(5.5)*h*ch_freq*bw*db_to_abs(boost_target_gain)
     if numAmp!=0:
         for i in range(numAmp):
             output_ase_noise = output_ase_noise*db_to_abs(-1*span_loss)
-            output_ase_noise = output_ase_noise*db_to_abs(Amp_gain)+db_to_abs(5.5)*6.62607015e-34*channel*32e09*db_to_abs(Amp_gain)
+            output_ase_noise = output_ase_noise*db_to_abs(Amp_gain)+db_to_abs(5.5)*h*ch_freq*bw*db_to_abs(Amp_gain)
     else:
         output_ase_noise = output_ase_noise*db_to_abs(-1*span_loss)
 
     # calculate the nli noise
     output_nli_noise = 0
-    for i in range(numAmp):
-        output_nli_noise = output_nli_noise + gn_model(net,power[i],100/numAmp*km)
+    if numAmp!=0:
+        for i in range(numAmp):
+            output_nli_noise = output_nli_noise + gn_model(net,power[i],100/numAmp*km)
+            output_nli_noise = output_nli_noise*db_to_abs(-1*span_loss)
+            output_nli_noise = output_nli_noise*db_to_abs(Amp_gain)
+    else:
+        output_nli_noise = output_nli_noise + gn_model(net,power[0],100*km)
         output_nli_noise = output_nli_noise*db_to_abs(-1*span_loss)
-        output_nli_noise = output_nli_noise*db_to_abs(Amp_gain)
 
     # calculate the last roadm part
+    # since the roadm's carrier attenuation's calculation needs the input power, ase noise, nli noise
     carrier_attenuation = 0
     total_power = output_power+output_ase_noise+output_nli_noise
-    carrier_attenuation = abs_to_db(total_power * 1e3) - (reference_power_dBm - roadm_insertion_loss)
+    carrier_attenuation = abs_to_db(total_power * 1e3) - (abs_to_db(input_power*1e03) - roadm_insertion_loss)
+    if carrier_attenuation<0:
+        carrier_attenuation=0.0
     output_power = output_power*db_to_abs(-1*carrier_attenuation)
     output_ase_noise = output_ase_noise*db_to_abs(-1*carrier_attenuation)
     output_nli_noise = output_nli_noise*db_to_abs(-1*carrier_attenuation)
-
     # calculate the last 0.001km span part
     last_span_loss = (list(fibre_spectral_attenuation['SMF']))[92-ch] *(0.001*km)
     output_nli_noise = output_nli_noise + gn_model(net,output_power,0.001*km)
@@ -303,6 +305,68 @@ def calc(net, n):
     
     print("power=",output_power,", ","ase_noise=",output_ase_noise,", ","nli_noise=",output_nli_noise,". ")
     print("OSNR=",abs_to_db(output_power/output_ase_noise),", ","gOSNR=",abs_to_db(output_power/(output_ase_noise+output_nli_noise)),". ")
+
+def calc2(net,length=100, numRoadm=2, input_power=1e-3, roadm_insertion_loss=17*dB, numAmp=2, boost_target_gain = 17*dB, ch=1, bw=32e09):
+    if ch==1:
+        ch_freq = 191.35e12
+    elif ch==2:
+        ch_freq = 191.40e12
+    h = 6.62607015e-34
+    span_loss = (list(fibre_spectral_attenuation['SMF']))[92-ch]
+    span_len = length/(numRoadm-1)
+    Amp_gain=0
+    if numAmp!=0:
+        span_loss = span_loss*(span_len/numAmp*km)
+        Amp_gain = span_len/numAmp*km*0.22
+    else:
+        span_loss = span_loss*(span_len*km)
+    output_power=input_power
+    output_ase_noise=0
+    output_nli_noise=0
+    for i in range(1,numRoadm):
+        if i==1:
+        #boost is only deployed behind the first roadm?
+        #first roadm does not need to compute the carrier_attenuation since there are no noise.
+        #roadm
+            carrier_attenuation=roadm_insertion_loss
+            output_power = output_power*db_to_abs(-1*carrier_attenuation)
+        #boost
+            output_power = output_power*db_to_abs(boost_target_gain)
+            output_ase_noise =output_ase_noise*db_to_abs(boost_target_gain)+\
+                                db_to_abs(5.5)*h*ch_freq*bw*db_to_abs(boost_target_gain)
+        else:
+            # roadm
+            carrier_attenuation = 0
+            total_power = output_power+output_ase_noise+output_nli_noise
+            carrier_attenuation = abs_to_db(total_power * 1e3) - (abs_to_db(input_power*1e03) - roadm_insertion_loss)
+            if carrier_attenuation<0:
+                carrier_attenuation=0.0
+            output_power = output_power*db_to_abs(-1*carrier_attenuation)
+            output_ase_noise = output_ase_noise*db_to_abs(-1*carrier_attenuation)
+            output_nli_noise = output_nli_noise*db_to_abs(-1*carrier_attenuation)
+        #span and amp
+        if i!=numRoadm-1:
+            if numAmp!=0:
+                for i in range(numAmp/(numRoadm-1)):
+                    # first calculate the nli noise since it needs the input power
+                    output_nli_noise = output_nli_noise + gn_model(net,output_power,span_len/numAmp*km)
+                    output_nli_noise = output_nli_noise*db_to_abs(-1*span_loss)
+                    output_nli_noise = output_nli_noise*db_to_abs(Amp_gain)
+                    output_power = output_power*db_to_abs(-1*span_loss)
+                    output_power = output_power*db_to_abs(Amp_gain)
+                    output_ase_noise = output_ase_noise*db_to_abs(-1*span_loss)
+                    output_ase_noise = output_ase_noise*db_to_abs(Amp_gain)+db_to_abs(5.5)*h*ch_freq*bw*db_to_abs(Amp_gain)
+            else:
+                output_nli_noise = output_nli_noise + gn_model(net,output_power,span_len*km)
+                output_nli_noise = output_nli_noise*db_to_abs(-1*span_loss)
+                output_power = output_power*db_to_abs(-1*span_loss)
+                output_ase_noise = output_ase_noise*db_to_abs(-1*span_loss)
+        else:
+            last_span_loss = (list(fibre_spectral_attenuation['SMF']))[92-ch] *(0.001*km)
+            output_nli_noise = output_nli_noise + gn_model(net,output_power,0.001*km)
+            output_nli_noise = output_nli_noise*db_to_abs(-1*last_span_loss)
+            output_power = output_power*db_to_abs(-1*last_span_loss)
+            output_ase_noise = output_ase_noise*db_to_abs(-1*last_span_loss)
 
 def gn_model(net, power, length):
     length = length * 1e03
