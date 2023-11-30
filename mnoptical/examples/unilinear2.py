@@ -306,7 +306,17 @@ def calc(net, n):
     print("power=",output_power,", ","ase_noise=",output_ase_noise,", ","nli_noise=",output_nli_noise,". ")
     print("OSNR=",abs_to_db(output_power/output_ase_noise),", ","gOSNR=",abs_to_db(output_power/(output_ase_noise+output_nli_noise)),". ")
 
-def calc2(net,length=100, numRoadm=2, input_power=1e-3, roadm_insertion_loss=17*dB, numAmp=2, boost_target_gain = 17*dB, ch=1, bw=32e09):
+def calc2(net,length=100, numRoadm=2, input_power=1e-3, 
+          roadm_insertion_loss=17*dB, numAmp=2, 
+          boost_target_gain = 17*dB, ch=1, bw=32e09):
+    # topo: roadm,boost,span,amp,...,roadm,span,amp,...,roadm,span,amp,...,roadm,span.
+    # (1)only first roadm does not need to calculate the carrier attenuation
+    # (2)the boost is only deployed behind the first roadm.
+    # (3)roadm rather than the last one is followed by span,amp,span,amp,...
+    # (4)only the last roadm is followed by a little 1m span.
+    # (5)the distance between roadm is the same
+    # (6)the distance between amp in the same span is the same
+    # (7)there are n-1 spans where n = no. of roadm.
     if ch==1:
         ch_freq = 191.35e12
     elif ch==2:
@@ -323,8 +333,8 @@ def calc2(net,length=100, numRoadm=2, input_power=1e-3, roadm_insertion_loss=17*
     output_power=input_power
     output_ase_noise=0
     output_nli_noise=0
-    for i in range(1,numRoadm):
-        if i==1:
+    for i in range(numRoadm):
+        if i==0:
         #boost is only deployed behind the first roadm?
         #first roadm does not need to compute the carrier_attenuation since there are no noise.
         #roadm
@@ -370,16 +380,16 @@ def calc2(net,length=100, numRoadm=2, input_power=1e-3, roadm_insertion_loss=17*
 
 def gn_model(net, power, length):
     length = length * 1e03
-    attenuation_values = list(fibre_spectral_attenuation['SMF'])
+    ref_wavelength=1550e-9
+    dispersion = 1.67e-05
+    non_linear_coefficient = 1.27 / 1e03
+    attenuation_values = list(fibre_spectral_attenuation['SMF']) #ch1:0.21543, ch2:0.21532
+
     for i in range(0, len(attenuation_values)):
         attenuation_values[i] = attenuation_values[i] / 1e03
     fibre_attenuation = (attenuation_values)[::-1]
     alpha = fibre_attenuation / (20 * np.log10(np.e))
-
-    ref_wavelength=1550e-9
-    dispersion = 1.67e-05
     beta2 = -(ref_wavelength ** 2) * abs(dispersion) / (2 * math.pi * 299792458.0 )
-    non_linear_coefficient = 1.27 / 1e03
     gamma = non_linear_coefficient
     effective_length = (1 - np.exp(-2 * alpha * length)) / (2 * alpha)
     asymptotic_length = 1 / (2 * alpha)
@@ -475,9 +485,7 @@ def config(net, mesh=False, root=1):
     # Turn on terminals
     for i in range(1, nodecount+1):
         net[f't{i}'].turn_on()
-
-
-    
+        
     test1(net)
     getber(net)
 
