@@ -53,7 +53,6 @@ def add_amp(node_name=None, type=None,
                          boost=True,
                          monitor_mode=monitor_mode)
 
-
 class OpticalTopo( Topo ):
     "Topo with convenience methods for optical networks"
 
@@ -100,7 +99,7 @@ class UniLinearTopo2( OpticalTopo ):
     def downlink(self, src): return 2*self.nodecount+src
 
     # Network topology
-    def build(self, power=0*dBm, nodecount=3, n=0, boost_gain = 17):
+    def build(self, power=0*dBm, nodecount=3, ampNum=0, boost_gain = 17, length = 100):
         """Create a unidirectional linear network with the specified
            operational power and node and transceiver counts"""
         self.nodecount = nodecount
@@ -118,20 +117,15 @@ class UniLinearTopo2( OpticalTopo ):
             self.addROADM(f'r{i}', **ropts, insertion_loss_dB = 17*dB, reference_power_dBm = power)
 
         # WAN Optical link parameters
-        total = 100
         if boost_gain!=-1:
             boost = ('boost', {'target_gain':boost_gain*dB})
-        if n!=0:
-            aparams = {'target_gain': total/n*km*.22, 'monitor_mode':'out'}
+        if ampNum!=0:
+            aparams = {'target_gain': length/ampNum*km*.22, 'monitor_mode':'out'}
             spans = []
-            for i in range(1,n+1):
-                spans+=[total/n*km, ('amp'+str(i), aparams)]
+            for i in range(1,ampNum+1):
+                spans+=[length/ampNum*km, ('amp'+str(i), aparams)]
         else:
-            #aparams = {'target_gain': 100*km*.22, 'monitor_mode':'out'}
-            spans = [total*km]
-        print("spans=",spans)
-        # aparams = {'target_gain': 50*km*.22, 'monitor_mode':'out'}
-        # spans = [50*km, ('amp1', aparams), 50*km, ('amp2', aparams)]
+            spans = [length*km]
 
         # Aliases for convenience
         eastin, eastout = self.eastin, self.eastout
@@ -172,28 +166,20 @@ class UniLinearTopo2( OpticalTopo ):
                 self.wdmLink(f'r{node}', f't{node}', spans=[1*m],
                              port1=dropport(dest), port2=downlink(dest))
                 
-
 def getber(net):
-    print("t1-monitor: ", net["t1-monitor"].getber("16psk"),end = '')
-    print(", t2-monitor: ", net["t2-monitor"].getber("16psk"))
-    fo = open("osnrresult.txt","a")
-    fo.write(str(net["t1-monitor"].getber("16psk")))
-    fo.write("\n")
-    fo.write(str(net["t2-monitor"].getber("16psk")))
-    fo.write("\n")
-    fo.close()
-    # for node in net:
-    #     if "monitor" in node:
-    #         print(node)
-    #         # if(command == "bpsk" or command == "qpsk" or command == "8psk" or command == "16psk"):
-    #         for command in ["bpsk", "qpsk", "8psk", "16psk"]:
-    #             print("\t",command ,": ", net[node].getber(command))
-    #         print()
+    # print("t1-monitor: ", net["t1-monitor"].getber("16psk"),end = '')
+    # print(", t2-monitor: ", net["t2-monitor"].getber("16psk"))
+    for node in net:
+        if "monitor" in node:
+            print(node)
+            # if(command == "bpsk" or command == "qpsk" or command == "8psk" or command == "16psk"):
+            for command in ["bpsk", "qpsk", "8psk", "16psk"]:
+                print("\t",command ,": ", net[node].getber(command))
+            print()
         # net["r2-r1-amp1-monitor"].getber(command)
 
 def setmod(net, command):
     nodecount = net.topo.nodecount
-    
     if(command != "16" and command != "64" and command != "256"):
         print("[error] 16 or 64 or 256 to set correspond modulation")
     else:
@@ -202,26 +188,21 @@ def setmod(net, command):
             terminal.setModulationForamt(command)
             # transceivers = terminal.transceivers
             # terminal.set_modulation_format(transceiver, f"{command}QAM")
-
             # print(transceivers)
             # print("QAK: ", f"{command}QAM")
 
-def test1(net):
+def output(net):
     fo = open("osnrresult.txt","a")
     # osnr = net["t1-monitor"].getosnr()
     gosnr = net["t1-monitor"].getgosnr()
     for signal in sorted(gosnr, key=lambda s:s.index):
-        # fo.write(str(osnr[signal]))
-        # fo.write("\n")
-        fo.write(str(gosnr.get(signal, float('nan'))))
-        fo.write("\n")
-    # osnr = net["t2-monitor"].getosnr()
+        fo.write(f'{(gosnr.get(signal)):8.4f} ')
     gosnr = net["t2-monitor"].getgosnr()
     for signal in sorted(gosnr, key=lambda s:s.index):
-        # fo.write(str(osnr[signal]))
-        # fo.write("\n")
-        fo.write(str(gosnr.get(signal, float('nan'))))
-        fo.write("\n")
+        fo.write(f'{(gosnr.get(signal)):8.4f} ')
+
+    fo.write(f'{(net["t1-monitor"].getber("16psk")):6.4f} ')
+    fo.write(f'{(net["t2-monitor"].getber("16psk")):6.4f}\n')
     fo.close()
     # for node in net:
     #     if "monitor" in node:
@@ -231,7 +212,7 @@ def test1(net):
     #         for signal in sorted(osnr, key=lambda s:s.index):
     #             print( '%s OSNR: %.2f dB , Data rate: %.2fGbps' % ( signal, osnr[signal] , 3*math.log2(1 + 10**((osnr[signal])/float(10)))), end='' )
 
-def calc(net, n):
+def calc(net, numAmp=2):
     # Setting the parameter
     input_power = 1e-3
     roadm_insertion_loss = 17*dB
@@ -243,7 +224,7 @@ def calc(net, n):
         ch_freq = 191.40e12
     h = 6.62607015e-34
     bw = 32e09
-    numAmp = int(n)
+    numAmp = int(numAmp)
     Amp_gain=0
     span_loss = (list(fibre_spectral_attenuation['SMF']))[92-ch]
     if numAmp!=0:
@@ -307,7 +288,7 @@ def calc(net, n):
     print("OSNR=",abs_to_db(output_power/output_ase_noise),", ","gOSNR=",abs_to_db(output_power/(output_ase_noise+output_nli_noise)),". ")
 
 def calc2(net,length=100, numRoadm=2, input_power=1e-3, 
-          roadm_insertion_loss=17*dB, numAmp=2, 
+          roadm_insertion_loss=17*dB, ampNum=2, 
           boost_target_gain = 17*dB, ch=1, bw=32e09):
     # topo: roadm,boost,span,amp,...,roadm,span,amp,...,roadm,span,amp,...,roadm,span.
     # (1)only first roadm does not need to calculate the carrier attenuation
@@ -325,9 +306,9 @@ def calc2(net,length=100, numRoadm=2, input_power=1e-3,
     span_loss = (list(fibre_spectral_attenuation['SMF']))[92-ch]
     span_len = length/(numRoadm-1)
     Amp_gain=0
-    if numAmp!=0:
-        span_loss = span_loss*(span_len/numAmp*km)
-        Amp_gain = span_len/numAmp*km*0.22
+    if ampNum!=0:
+        span_loss = span_loss*(span_len/ampNum*km)
+        Amp_gain = span_len/ampNum*km*0.22
     else:
         span_loss = span_loss*(span_len*km)
     output_power=input_power
@@ -356,10 +337,10 @@ def calc2(net,length=100, numRoadm=2, input_power=1e-3,
             output_nli_noise = output_nli_noise*db_to_abs(-1*carrier_attenuation)
         #span and amp
         if i!=numRoadm-1:
-            if numAmp!=0:
-                for i in range(numAmp/(numRoadm-1)):
+            if ampNum!=0:
+                for i in range(ampNum/(numRoadm-1)):
                     # first calculate the nli noise since it needs the input power
-                    output_nli_noise = output_nli_noise + gn_model(net,output_power,span_len/numAmp*km)
+                    output_nli_noise = output_nli_noise + gn_model(net,output_power,span_len/ampNum*km)
                     output_nli_noise = output_nli_noise*db_to_abs(-1*span_loss)
                     output_nli_noise = output_nli_noise*db_to_abs(Amp_gain)
                     output_power = output_power*db_to_abs(-1*span_loss)
@@ -378,7 +359,7 @@ def calc2(net,length=100, numRoadm=2, input_power=1e-3,
             output_power = output_power*db_to_abs(-1*last_span_loss)
             output_ase_noise = output_ase_noise*db_to_abs(-1*last_span_loss)
 
-def gn_model(net, power, length):
+def gn_model(net, power=1e-3, length=100):
     length = length * 1e03
     ref_wavelength=1550e-9
     dispersion = 1.67e-05
@@ -486,8 +467,7 @@ def config(net, mesh=False, root=1):
     for i in range(1, nodecount+1):
         net[f't{i}'].turn_on()
         
-    test1(net)
-    getber(net)
+    output(net)
 
 
 class CLI( OpticalCLI ):
@@ -498,8 +478,8 @@ class CLI( OpticalCLI ):
         setmod(self.mn, _line)
     def do_getber(self, _line):
         getber(self.mn)
-    def do_test1(self, _line):
-        test1(self.mn)
+    def do_output(self, _line):
+        output(self.mn)
     def do_calc(self, _line):
         calc(self.mn, _line)
 
@@ -507,7 +487,6 @@ def test(net):
     "Configure and test network"
     config(net)
     assert net.pingAll() == 0   # 0% loss
-
 
 if __name__ == '__main__':
 
@@ -522,13 +501,9 @@ if __name__ == '__main__':
     if len(argv)>=3:
         input_ampNum = int(argv[2])
     fo = open("osnrresult.txt","a")
-    fo.write(argv[1])
-    fo.write(", ")
-    fo.write(argv[2])
-    fo.write("\n")
+    fo.write(f'{argv[1]:17s} {argv[2]:6s} ')
     fo.close()
-    topo = UniLinearTopo2(nodecount=2,n = input_ampNum, boost_gain = input_boost_gain)
-
+    topo = UniLinearTopo2(nodecount=2,ampNum = input_ampNum, boost_gain = input_boost_gain)
     # if len(argv) < 3:
     #     print("error input roadm insertion loss and amp target gain")
     #     exit(0)
