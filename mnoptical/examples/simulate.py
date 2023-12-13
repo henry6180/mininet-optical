@@ -115,8 +115,10 @@ if __name__ == '__main__':
 
     length=100
     roadm_insertion_loss=17*dB
+    ber=0.01
     if len(argv)>=2: length = int(argv[1])
     if len(argv)>=3: roadm_insertion_loss = int(argv[2])*dB
+    if len(argv)>=4: ber = float(argv[3])
     maxD=0.1 #max = maxD amps/km
     minB = int(argv[2])-5
     maxB = int(argv[2])+5
@@ -131,12 +133,16 @@ if __name__ == '__main__':
                 t2_ber = (3/8)*erfc(sqrt(t2_gosnr/10))
             else:
                 t2_ber = 1
+            if t2_ber>ber:
+                continue
             t1_gosnr = (calc(length=length, roadm_insertion_loss=roadm_insertion_loss,
                              numAmp=numAmp, boost_target_gain=boost_target_gain*dB, ch=2))[4]
             if t1_gosnr>0:
                 t1_ber = (3/8)*erfc(sqrt(t1_gosnr/10))
             else:
                 t1_ber = 1
+            if t2_ber>ber:
+                continue
             fo.write(f'{boost_target_gain:<17d} {numAmp:<6d} ')
             fo.write(f'{(t1_gosnr):8.4f} {(t2_gosnr):8.4f} {(t1_ber):6.4f} {(t2_ber):6.4f}\n')
     fo.close()
