@@ -115,7 +115,7 @@ if __name__ == '__main__':
 
     length=100
     roadm_insertion_loss=17*dB
-    ber=0.01
+    ber=1
     if len(argv)>=2: length = int(argv[1])
     if len(argv)>=3: roadm_insertion_loss = int(argv[2])*dB
     if len(argv)>=4: ber = float(argv[3])
