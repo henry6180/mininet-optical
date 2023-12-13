@@ -6,28 +6,23 @@ from mnoptical.units import db_to_abs, abs_to_db
 from mnoptical.edfa_params import fibre_spectral_attenuation
 from sys import argv
 
-def calc(boost_target_gain = 17, numAmp = 2, ch = 1):
-    # parse the argument
-    # arg_list = arg.split(' ')
-    # arg_list = [int(x) for x in arg_list]
-    # boost_target_gain = arg_list[0]*dB
-    # numAmp = arg_list[1]
+def calc(length=100, roadm_insertion_loss=17*dB,
+         numAmp=2, boost_target_gain = 17*dB, ch=1):
     # Setting the parameter
-    input_power = 1e-3
-    roadm_insertion_loss = 17*dB
+    input_power=1e-3
+    bw=32e09
     if ch==1:
         ch_freq = 191.35e12
     else:
         ch_freq = 191.40e12
     h = 6.62607015e-34
-    bw = 32e09
     Amp_gain=0
     span_loss = (list(fibre_spectral_attenuation['SMF']))[92-ch]
     if numAmp!=0:
-        span_loss = span_loss*(100/numAmp*km)
-        Amp_gain = 100/numAmp*km*0.22
+        span_loss = span_loss*(length/numAmp*km)
+        Amp_gain = length/numAmp*km*0.22
     else:
-        span_loss = span_loss*(100*km)
+        span_loss = span_loss*(length*km)
     power = []
     # calculate the output power
     output_power = input_power*db_to_abs(-1*roadm_insertion_loss)
@@ -56,11 +51,11 @@ def calc(boost_target_gain = 17, numAmp = 2, ch = 1):
     output_nli_noise = 0
     if numAmp!=0:
         for i in range(numAmp):
-            output_nli_noise = output_nli_noise + gn_model(power[i],100/numAmp*km)
+            output_nli_noise = output_nli_noise + gn_model(power[i],length/numAmp*km)
             output_nli_noise = output_nli_noise*db_to_abs(-1*span_loss)
             output_nli_noise = output_nli_noise*db_to_abs(Amp_gain)
     else:
-        output_nli_noise = output_nli_noise + gn_model(power[0],100*km)
+        output_nli_noise = output_nli_noise + gn_model(power[0],length*km)
         output_nli_noise = output_nli_noise*db_to_abs(-1*span_loss)
 
     # calculate the last roadm part
@@ -117,15 +112,31 @@ def gn_model(power=1e-3, length=100):
     return g_nli
 
 if __name__ == '__main__':
-    max_boost_gain = 30
-    max_numAmp = 30
+
+    length=100
+    roadm_insertion_loss=17*dB
+    if len(argv)>=2: length = int(argv[1])
+    if len(argv)>=3: roadm_insertion_loss = int(argv[2])*dB
+    maxD=0.1 #max = maxD amps/km
+    minB = int(argv[2])-5
+    maxB = int(argv[2])+5
+    maxA = int(length*maxD)
+
     fo = open("result2.txt","a")
-    for boost_target_gain in range(1, max_boost_gain+1):
-        for numAmp in range(1,max_numAmp+1):
-            t2_gosnr = (calc(boost_target_gain, numAmp, 1))[4]
-            t2_ber = (3/8)*erfc(sqrt(t2_gosnr/10))
-            t1_gosnr = (calc(boost_target_gain, numAmp, 2))[4]
-            t1_ber = (3/8)*erfc(sqrt(t1_gosnr/10))
+    for boost_target_gain in range(minB, maxB+1):
+        for numAmp in range(1,maxA+1):
+            t2_gosnr = (calc(length=length, roadm_insertion_loss=roadm_insertion_loss,
+                             numAmp=numAmp, boost_target_gain=boost_target_gain*dB, ch=1))[4]
+            if t2_gosnr>0:
+                t2_ber = (3/8)*erfc(sqrt(t2_gosnr/10))
+            else:
+                t2_ber = 1
+            t1_gosnr = (calc(length=length, roadm_insertion_loss=roadm_insertion_loss,
+                             numAmp=numAmp, boost_target_gain=boost_target_gain*dB, ch=2))[4]
+            if t1_gosnr>0:
+                t1_ber = (3/8)*erfc(sqrt(t1_gosnr/10))
+            else:
+                t1_ber = 1
             fo.write(f'{boost_target_gain:<17d} {numAmp:<6d} ')
             fo.write(f'{(t1_gosnr):8.4f} {(t2_gosnr):8.4f} {(t1_ber):6.4f} {(t2_ber):6.4f}\n')
     fo.close()

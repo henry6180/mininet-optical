@@ -99,7 +99,11 @@ class UniLinearTopo2( OpticalTopo ):
     def downlink(self, src): return 2*self.nodecount+src
 
     # Network topology
-    def build(self, power=0*dBm, nodecount=3, ampNum=0, boost_gain = 17, length = 100):
+    def build(self, power=0*dBm, nodecount=3, 
+              length = 100, 
+              roadm_insertion_loss = 17*dB, 
+              numAmp=2, 
+              boost_target_gain = 17):
         """Create a unidirectional linear network with the specified
            operational power and node and transceiver counts"""
         self.nodecount = nodecount
@@ -114,16 +118,16 @@ class UniLinearTopo2( OpticalTopo ):
             self.addHost(f'h{i}')
             self.addSwitch(f's{i}')
             self.addTerminal(f't{i}', **topts)
-            self.addROADM(f'r{i}', **ropts, insertion_loss_dB = 17*dB, reference_power_dBm = power)
+            self.addROADM(f'r{i}', **ropts, insertion_loss_dB = roadm_insertion_loss, reference_power_dBm = power)
 
         # WAN Optical link parameters
-        if boost_gain!=-1:
-            boost = ('boost', {'target_gain':boost_gain*dB})
-        if ampNum!=0:
-            aparams = {'target_gain': length/ampNum*km*.22, 'monitor_mode':'out'}
+        if boost_target_gain!=-1:
+            boost = ('boost', {'target_gain':boost_target_gain*dB})
+        if numAmp!=0:
+            aparams = {'target_gain': length/numAmp*km*.22, 'monitor_mode':'out'}
             spans = []
-            for i in range(1,ampNum+1):
-                spans+=[length/ampNum*km, ('amp'+str(i), aparams)]
+            for i in range(1,numAmp+1):
+                spans+=[length/numAmp*km, ('amp'+str(i), aparams)]
         else:
             spans = [length*km]
 
@@ -136,12 +140,10 @@ class UniLinearTopo2( OpticalTopo ):
         # Add links for each node/POP
         for node in range(1, nodecount+1):
             # Eastbound and westbound roadm->roadm links
-
-            if boost_gain!=-1:
+            if boost_target_gain!=-1:
                 lopts = dict(boost=boost, spans=spans)
-            if boost_gain==-1:
+            elif boost_target_gain==-1:
                 lopts = dict(spans=spans)
-
 
             if node < nodecount:
                 self.wdmLink(f'r{node}', f'r{node+1}', **lopts,
@@ -288,7 +290,7 @@ def calc(net, numAmp=2):
     print("OSNR=",abs_to_db(output_power/output_ase_noise),", ","gOSNR=",abs_to_db(output_power/(output_ase_noise+output_nli_noise)),". ")
 
 def calc2(net,length=100, numRoadm=2, input_power=1e-3, 
-          roadm_insertion_loss=17*dB, ampNum=2, 
+          roadm_insertion_loss=17*dB, numAmp=2, 
           boost_target_gain = 17*dB, ch=1, bw=32e09):
     # topo: roadm,boost,span,amp,...,roadm,span,amp,...,roadm,span,amp,...,roadm,span.
     # (1)only first roadm does not need to calculate the carrier attenuation
@@ -306,9 +308,9 @@ def calc2(net,length=100, numRoadm=2, input_power=1e-3,
     span_loss = (list(fibre_spectral_attenuation['SMF']))[92-ch]
     span_len = length/(numRoadm-1)
     Amp_gain=0
-    if ampNum!=0:
-        span_loss = span_loss*(span_len/ampNum*km)
-        Amp_gain = span_len/ampNum*km*0.22
+    if numAmp!=0:
+        span_loss = span_loss*(span_len/numAmp*km)
+        Amp_gain = span_len/numAmp*km*0.22
     else:
         span_loss = span_loss*(span_len*km)
     output_power=input_power
@@ -337,10 +339,10 @@ def calc2(net,length=100, numRoadm=2, input_power=1e-3,
             output_nli_noise = output_nli_noise*db_to_abs(-1*carrier_attenuation)
         #span and amp
         if i!=numRoadm-1:
-            if ampNum!=0:
-                for i in range(ampNum/(numRoadm-1)):
+            if numAmp!=0:
+                for i in range(numAmp/(numRoadm-1)):
                     # first calculate the nli noise since it needs the input power
-                    output_nli_noise = output_nli_noise + gn_model(net,output_power,span_len/ampNum*km)
+                    output_nli_noise = output_nli_noise + gn_model(net,output_power,span_len/numAmp*km)
                     output_nli_noise = output_nli_noise*db_to_abs(-1*span_loss)
                     output_nli_noise = output_nli_noise*db_to_abs(Amp_gain)
                     output_power = output_power*db_to_abs(-1*span_loss)
@@ -493,36 +495,25 @@ if __name__ == '__main__':
     cleanup()  # Just in case!
     setLogLevel('info')
     if len(argv) == 2 and argv[1] == 'clean': exit(0)
+    """
+    length roadm_insertion_loss numAmp boost_target_gain
+    """
+    length=100
+    roadm_insertion_loss=17*dB
+    numAmp=2
+    boost_target_gain=17*dB
+    if len(argv)>=2: length = int(argv[1])
+    if len(argv)>=3: roadm_insertion_loss = int(argv[2])*dB
+    if len(argv)>=4: numAmp = int(argv[3])
+    if len(argv)>=5: boost_target_gain = int(argv[4])*dB
 
-    input_ampNum = 0
-    input_boost_gain = 17
-    if len(argv)>=2:
-        input_boost_gain = int(argv[1])
-    if len(argv)>=3:
-        input_ampNum = int(argv[2])
     fo = open("result1.txt","a")
-    fo.write(f'{argv[1]:17s} {argv[2]:6s} ')
+    fo.write(f'{argv[4]:17s} {argv[3]:6s} ')
     fo.close()
-    topo = UniLinearTopo2(nodecount=2,ampNum = input_ampNum, boost_gain = input_boost_gain)
-    # if len(argv) < 3:
-    #     print("error input roadm insertion loss and amp target gain")
-    #     exit(0)
-
-    # input_insertion_loss = argv[1]
-    # input_target_gain = argv[2]
-
-    # print("input_insertion_loss:", input_insertion_loss)
-    # print("input_target_gain:", input_target_gain)
-
-    # topo = UniLinearTopo2(nodecount=2, insertion_loss=input_insertion_loss, target_gain=input_target_gain)
-    
-
-    # topo = UniLinearTopo2(nodecount=2)
+    topo = UniLinearTopo2(nodecount=2, length=length,roadm_insertion_loss=roadm_insertion_loss,numAmp=numAmp, boost_target_gain=boost_target_gain)
 
     net = Mininet(topo=topo, switch=OVSBridge, controller=None)
-    # restServer = RestServer(net)
     net.start()
-    # restServer.start()
     plotNet(net, outfile='unilinear2.png', directed=True,
             layout='neato')
     info( '*** Use config command to configure network \n' )
@@ -530,5 +521,5 @@ if __name__ == '__main__':
         test(net)
     else:
         CLI(net)
-    # restServer.stop()
     net.stop()
+    
