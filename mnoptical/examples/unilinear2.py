@@ -192,7 +192,7 @@ def setmod(net, command):
             # print("QAK: ", f"{command}QAM")
 
 def output(net):
-    fo = open("osnrresult.txt","a")
+    fo = open("result1.txt","a")
     # osnr = net["t1-monitor"].getosnr()
     gosnr = net["t1-monitor"].getgosnr()
     for signal in sorted(gosnr, key=lambda s:s.index):
@@ -500,7 +500,7 @@ if __name__ == '__main__':
         input_boost_gain = int(argv[1])
     if len(argv)>=3:
         input_ampNum = int(argv[2])
-    fo = open("osnrresult.txt","a")
+    fo = open("result1.txt","a")
     fo.write(f'{argv[1]:17s} {argv[2]:6s} ')
     fo.close()
     topo = UniLinearTopo2(nodecount=2,ampNum = input_ampNum, boost_gain = input_boost_gain)
