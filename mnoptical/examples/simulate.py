@@ -111,6 +111,11 @@ def gn_model(power=1e-3, length=100):
     g_nli *= bw_cut
     return g_nli
 
+def get_ber(gosnr):
+    if gosnr>0:
+        return (3/8)*erfc(sqrt(gosnr/10))
+    return 1
+
 if __name__ == '__main__':
 
     length=100
@@ -129,18 +134,12 @@ if __name__ == '__main__':
         for numAmp in range(1,maxA+1):
             t2_gosnr = (calc(length=length, roadm_insertion_loss=roadm_insertion_loss,
                              numAmp=numAmp, boost_target_gain=boost_target_gain*dB, ch=1))[4]
-            if t2_gosnr>0:
-                t2_ber = (3/8)*erfc(sqrt(t2_gosnr/10))
-            else:
-                t2_ber = 1
+            t2_ber = get_ber(t2_gosnr)
             if t2_ber>ber:
                 continue
             t1_gosnr = (calc(length=length, roadm_insertion_loss=roadm_insertion_loss,
                              numAmp=numAmp, boost_target_gain=boost_target_gain*dB, ch=2))[4]
-            if t1_gosnr>0:
-                t1_ber = (3/8)*erfc(sqrt(t1_gosnr/10))
-            else:
-                t1_ber = 1
+            t1_ber = get_ber(t1_gosnr)
             if t2_ber>ber:
                 continue
             fo.write(f'{boost_target_gain:<17d} {numAmp:<6d} ')

@@ -199,12 +199,19 @@ def output(net):
     gosnr = net["t1-monitor"].getgosnr()
     for signal in sorted(gosnr, key=lambda s:s.index):
         fo.write(f'{(gosnr.get(signal)):8.4f} ')
+        t1_gosnr=gosnr.get(signal)
     gosnr = net["t2-monitor"].getgosnr()
     for signal in sorted(gosnr, key=lambda s:s.index):
         fo.write(f'{(gosnr.get(signal)):8.4f} ')
-
-    fo.write(f'{(net["t1-monitor"].getber("16psk")):6.4f} ')
-    fo.write(f'{(net["t2-monitor"].getber("16psk")):6.4f}\n')
+        t2_gosnr=gosnr.get(signal)
+    if t1_gosnr>0:
+        fo.write(f'{(net["t1-monitor"].getber("16psk")):6.4f} ')
+    else:
+        fo.write(f'{(1.0):6.4f} ')
+    if t2_gosnr>0:
+        fo.write(f'{(net["t2-monitor"].getber("16psk")):6.4f} ')
+    else:
+        fo.write(f'{(1.0):6.4f} ')
     fo.close()
     # for node in net:
     #     if "monitor" in node:

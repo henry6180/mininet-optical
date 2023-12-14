@@ -1,6 +1,9 @@
 #!/bin/bash
-set -e
+
+# Program to run the unilinear2.py with given arguments and then run the simulate.py
 # Usage: ./test2.sh length roadm_insertion_loss numAmp boost_target_gain ber
+
+set -e
 
 execfile="unilinear2.py"
 simfile="simulate.py"
