@@ -143,6 +143,7 @@ if __name__ == '__main__':
             t1_ber = get_ber(t1_gosnr)
             if t2_ber>ber:
                 continue
-            fo.write(f'{boost_target_gain:<17d} {numAmp:<6d} ')
-            fo.write(f'{(t1_gosnr):8.4f} {(t2_gosnr):8.4f} {(t1_ber):6.4f} {(t2_ber):6.4f}\n')
+            fo.write("%d %d %.4f %.4f %.4f %.4f\n" % (boost_target_gain,numAmp,t1_gosnr,t2_gosnr,t1_ber,t2_ber))
+            # fo.write(f'{boost_target_gain:<17d} {numAmp:<6d} ')
+            # fo.write(f'{(t1_gosnr):8.4f} {(t2_gosnr):8.4f} {(t1_ber):6.4f} {(t2_ber):6.4f}\n')
     fo.close()

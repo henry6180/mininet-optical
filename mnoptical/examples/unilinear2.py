@@ -198,20 +198,24 @@ def output(net):
     # osnr = net["t1-monitor"].getosnr()
     gosnr = net["t1-monitor"].getgosnr()
     for signal in sorted(gosnr, key=lambda s:s.index):
-        fo.write(f'{(gosnr.get(signal)):8.4f} ')
+        # fo.write(f'{(gosnr.get(signal)):8.4f} ')
+        fo.write("%.4f " % (gosnr.get(signal)))
         t1_gosnr=gosnr.get(signal)
     gosnr = net["t2-monitor"].getgosnr()
     for signal in sorted(gosnr, key=lambda s:s.index):
-        fo.write(f'{(gosnr.get(signal)):8.4f} ')
+        # fo.write(f'{(gosnr.get(signal)):8.4f} ')
+        fo.write("%.4f " % (gosnr.get(signal)))
         t2_gosnr=gosnr.get(signal)
     if t1_gosnr>0:
-        fo.write(f'{(net["t1-monitor"].getber("16psk")):6.4f} ')
+        # fo.write(f'{(net["t1-monitor"].getber("16psk")):6.4f} ')
+        fo.write("%.4f " % (net["t1-monitor"].getber("16psk")))
     else:
-        fo.write(f'{(1.0):6.4f} ')
+        fo.write("1.0000")
     if t2_gosnr>0:
-        fo.write(f'{(net["t2-monitor"].getber("16psk")):6.4f} ')
+        # fo.write(f'{(net["t2-monitor"].getber("16psk")):6.4f} ')
+        fo.write("%.4f" % (net["t2-monitor"].getber("16psk")))
     else:
-        fo.write(f'{(1.0):6.4f} ')
+        fo.write("1.0000")
     fo.close()
     # for node in net:
     #     if "monitor" in node:
@@ -515,7 +519,8 @@ if __name__ == '__main__':
     if len(argv)>=5: boost_target_gain = int(argv[4])*dB
 
     fo = open("result1.txt","w")
-    fo.write(f'{argv[4]:17s} {argv[3]:6s} ')
+    # fo.write(f'{argv[4]:17s} {argv[3]:6s} ')
+    fo.write("%s %s " % (argv[4],argv[3]))
     fo.close()
     topo = UniLinearTopo2(nodecount=2, length=length,roadm_insertion_loss=roadm_insertion_loss,numAmp=numAmp, boost_target_gain=boost_target_gain)
 
