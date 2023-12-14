@@ -128,6 +128,7 @@ if __name__ == '__main__':
     minB = int(argv[2])-5
     maxB = int(argv[2])+5
     maxA = int(length*maxD)
+    if maxA<=10: maxA=10
 
     fo = open("result2.txt","w")
     for boost_target_gain in range(minB, maxB+1):
