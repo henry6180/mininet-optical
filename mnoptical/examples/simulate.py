@@ -124,7 +124,7 @@ if __name__ == '__main__':
     maxB = int(argv[2])+5
     maxA = int(length*maxD)
 
-    fo = open("result2.txt","a")
+    fo = open("result2.txt","w")
     for boost_target_gain in range(minB, maxB+1):
         for numAmp in range(1,maxA+1):
             t2_gosnr = (calc(length=length, roadm_insertion_loss=roadm_insertion_loss,

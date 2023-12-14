@@ -507,7 +507,7 @@ if __name__ == '__main__':
     if len(argv)>=4: numAmp = int(argv[3])
     if len(argv)>=5: boost_target_gain = int(argv[4])*dB
 
-    fo = open("result1.txt","a")
+    fo = open("result1.txt","w")
     fo.write(f'{argv[4]:17s} {argv[3]:6s} ')
     fo.close()
     topo = UniLinearTopo2(nodecount=2, length=length,roadm_insertion_loss=roadm_insertion_loss,numAmp=numAmp, boost_target_gain=boost_target_gain)
