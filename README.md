@@ -1,5 +1,5 @@
-Changed files: unilinear2.py, test.sh, test2.sh, result1.txt, result2.txt in /mnoptical/examples
-Every time clone this repository, use this instruction:  make clean && make dist && make force 
+Changed files: unilinear2.py, test.sh, test2.sh, result1.txt, result2.txt in /mnoptical/examples.  
+Every time clone this repository, use this instruction:  make clean && make dist && make force.  
 
 ### Welcome to Mininet-Optical
 
